@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "xor": {
+      "commandName": "Project",
+      "commandLineArgs": "E:\\Pentesting\\CTF\\htb\\Fortresses\\jet\\alex\\encrypted.txt"
+    }
+  }
+}

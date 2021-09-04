@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "freq": {
+      "commandName": "Project",
+      "commandLineArgs": "E:\\Pentesting\\CTF\\OTW\\krypton\\all.txt"
+    }
+  }
+}

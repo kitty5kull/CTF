@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "image2hex": {
+      "commandName": "Project",
+      "commandLineArgs": "B S E:\\Pentesting\\CTF\\HTB\\smallsquare.png > E:\\Pentesting\\CTF\\HTB\\blacksquare.txt"
+    }
+  }
+}
