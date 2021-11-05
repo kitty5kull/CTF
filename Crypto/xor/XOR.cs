@@ -12,16 +12,17 @@ namespace xor
 		private byte[] _bytes;
 		private Dictionary<int, int> _distances;
 
+
 		public XOR(byte[] bytes)
 		{
 			_bytes = bytes;
 		}
 
+
 		public void Decypher()
 		{
 			ReadMultigramDistances();
-			var ggts = CalculateGGTs(_distances);
-
+	
 			int keylen = GetEstimatedKeyLength();
 			if (keylen < 1)
 				return;
@@ -29,13 +30,14 @@ namespace xor
 			var candidates = GetKeyCandidates(keylen);
 
 			var best = GetBestKey(keylen, candidates);
-			var bestLk = GetBestLowerCaseKey(keylen, candidates);
-
 			PrintKey(best);
 			PrintDecyphered(best);
+
+			var bestLk = GetBestLowerCaseKey(keylen, candidates);
 			PrintKey(bestLk);
 			PrintDecyphered(bestLk);
 		}
+
 
 		private void PrintDecyphered(byte[] best)
 		{
@@ -45,6 +47,7 @@ namespace xor
 			Log(Encoding.ASCII.GetString(decoded));
 		}
 
+
 		private byte[] GetBestKey(int keylen, Dictionary<int, List<int>> candidates)
 		{
 			var best = Enumerable.Range(0, keylen)
@@ -52,6 +55,7 @@ namespace xor
 				.ToArray();
 			return best;
 		}
+
 
 		private void PrintKey(byte[] best)
 		{
@@ -61,6 +65,7 @@ namespace xor
 			Log(new string('*', 80));
 		}
 
+
 		private byte[] GetBestLowerCaseKey(int keylen, Dictionary<int, List<int>> candidates)
 		{
 			var best = Enumerable.Range(0, keylen)
@@ -68,6 +73,8 @@ namespace xor
 				.ToArray();
 			return best;
 		}
+
+
 		private Dictionary<int, List<int>> GetKeyCandidates(int keylen)
 		{
 			var cypherByKey = GetCypherTextByKeyByte(keylen);
@@ -99,6 +106,7 @@ namespace xor
 			return scores.ToDictionary(s => s.Key, s => s.Value.OrderByDescending(v => v.Value).Take(3).Select(v => v.Key).ToList());
 		}
 
+
 		private Dictionary<int, byte[]> GetCypherTextByKeyByte(int keylen)
 		{
 			var retval = new Dictionary<int, byte[]>();
@@ -113,6 +121,7 @@ namespace xor
 
 			return retval;
 		}
+
 
 		private int GetEstimatedKeyLength()
 		{
@@ -149,98 +158,67 @@ namespace xor
 			return ggt;
 		}
 
-		private Dictionary<int, int> CalculateGGTs(Dictionary<int, int> originalValues)
-		{
-			var retval = new Dictionary<int, int>();
-
-			foreach(var outer in originalValues)
-			{
-				Parallel.ForEach(originalValues, inner =>
-				{
-					if (inner.Key != outer.Key)
-					{
-						int ggt = StaticHelpers.GGT(inner.Key, outer.Key);
-						if (ggt > 1)
-						{
-							lock(retval)
-							{
-								if (!retval.ContainsKey(ggt))
-									retval.Add(ggt, 0);
-								retval[ggt] += 1;
-							}
-						}
-					}
-				});
-			}
-
-			return retval;
-		}
-
-		#region Mutligram Search
 
 		private void ReadMultigramDistances()
 		{
 			_distances = new Dictionary<int, int>();
-			int Cores = Environment.ProcessorCount;
-			Log($"Seaching for multigrams, number of threads: {Cores} ...");
+			var sequences = ExtractSequences();
 
-			ManualResetEvent[] events = new ManualResetEvent[Cores];
+			for (int i = 2; i <= 8; i++)
+				ReadDistances(sequences, i);
+		}
 
-			for (int i = 0; i < Cores; i++)
+
+		private void ReadDistances(Tuple<ulong, int>[] sequences, int byteLength)
+		{
+			Tuple<ulong, int>[] multigrams;
+
+			if (byteLength == 8)
+				multigrams = sequences;
+			else
 			{
-				ThreadInfo info = new ThreadInfo();
-				info.Cores = Cores;
-				info.Modulo = i;
-				info.resetevent = new ManualResetEvent(false);
-				events[i] = info.resetevent;
-
-				Thread worker = new Thread(new ParameterizedThreadStart(FindMultis));
-				worker.Start(info);
+				ulong mask = (1ul << (byteLength * 8)) - 1;
+				multigrams = new Tuple<ulong, int>[sequences.Length];
+				for (int i = 0; i < multigrams.Length; i++)
+					multigrams[i] = new Tuple<ulong, int>(sequences[i].Item1 & mask, i);
 			}
 
-			ManualResetEvent relay = new ManualResetEvent(false);
-			Thread starelay = new Thread(new ParameterizedThreadStart(StaticHelpers.STARelay));
-			starelay.Start(new KeyValuePair<ManualResetEvent, ManualResetEvent[]>(relay, events));
-			relay.WaitOne();
+
+			foreach (var group in multigrams.GroupBy(m => m.Item1))
+			{
+				var sequence = group.ToList();
+
+				if (sequence.Count < 2)
+					continue;
+
+				for (int i = 0; i < sequence.Count - 1; i++)
+				{
+					var distance = sequence[i + 1].Item2 - sequence[i].Item2;
+					if (_distances.ContainsKey(distance))
+						_distances[distance]++;
+					else
+						_distances.Add(distance, 1);
+				}
+			}
 		}
 
-		private void FindMultis(object infoObj)
+		private Tuple<ulong, int>[] ExtractSequences()
 		{
-			ThreadInfo info = infoObj as ThreadInfo;
+			var multigrams = new Tuple<ulong, int>[_bytes.Length - 1];
+			var tmp = new byte[8];
 
-			for (int l = info.Modulo; l <= 255; l += info.Cores)
-				SearchForMultigrams((byte)l);
-			info.resetevent.Set();
+			for (int i = 0; i < _bytes.Length - 7; i++)
+				multigrams[i] = new Tuple<ulong, int>(BitConverter.ToUInt64(_bytes, i), i);
+
+			for (int i = _bytes.Length - 2; i >= _bytes.Length - 7;  i--)
+			{
+				Array.Copy(_bytes, i, tmp, 0, _bytes.Length - i);
+				multigrams[i] = new Tuple<ulong, int>(BitConverter.ToUInt64(tmp), i);
+			}
+
+			return multigrams;
 		}
 
-		private void SearchForMultigrams(byte b)
-		{
-			int current = 0;
-			int i, sequence, dist, multis = 0;
-
-			for (i = 0; i < _bytes.Length; i++)
-				if (_bytes[i] == b)
-					for (int j = i + 1; j < _bytes.Length; j++)
-						if (_bytes[j] == b)
-						{
-							sequence = StaticHelpers.CompareByteSequence(_bytes, _bytes, i, j);
-							if (sequence > 1 && j - i >= sequence)
-							{
-								dist = j - i;
-								multis += sequence - 2;
-
-								lock (this)
-								{
-									if (!_distances.ContainsKey(dist))
-										_distances.Add(dist, 0);
-									_distances[dist] += 1; // (sequence - 2) * (sequence - 2);
-									current = i;
-								}
-							}
-						}
-		}
-
-		#endregion
 
 		private void Log(string message)
 		{
