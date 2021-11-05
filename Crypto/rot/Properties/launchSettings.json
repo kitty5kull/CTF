@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "rot": {
+      "commandName": "Project",
+      "commandLineArgs": "84"
+    }
+  }
+}
