@@ -114,7 +114,7 @@ namespace xor
 			for (int keyOffset = 0; keyOffset < keylen; keyOffset++)
 			{
 				var bList = new List<byte>();
-				for (int dataOffset = keyOffset; dataOffset < _distances.Count; dataOffset += keylen)
+				for (int dataOffset = keyOffset; dataOffset < _bytes.Length; dataOffset += keylen)
 					bList.Add(_bytes[dataOffset]);
 				retval.Add(keyOffset, bList.ToArray());
 			}
@@ -151,10 +151,13 @@ namespace xor
 				return 0;
 			}
 
+			var ggtitem = GGTHigh.OrderByDescending(g => g.Value).First();
+			ggt = ggtitem.Key;
 
-			ggt = GGTHigh.OrderByDescending(g => g.Value).First().Key;
-			Log($"Estimated key length: {ggt:n0} bytes.");
+			var sum = GGTHigh.Values.Sum();
+			var score = GGTHigh.Where(t => t.Key % ggt == 0).Sum(i => i.Value);
 
+			Log($"Estimated key length: {ggt:n0} bytes (confidence: {1.0 * score / sum:p1}).");
 			return ggt;
 		}
 

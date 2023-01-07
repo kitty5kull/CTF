@@ -2,7 +2,7 @@
   "profiles": {
     "xor": {
       "commandName": "Project",
-      "commandLineArgs": "E:\\Pentesting\\CTF\\root-me.org\\Crypto\\ch3\\ch3.bmp"
+      "commandLineArgs": "E:\\Pentesting\\CTF\\Vulnhub\\Planets\\Earth\\msg3.dat"
     }
   }
 }
